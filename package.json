@@ -1,0 +1,16 @@
+{
+  "name": "bot-telegram-stripe",
+  "version": "1.0.0",
+  "description": "Bot Telegram com assinatura Stripe R$29,99",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "telegraf": "^4.15.0",
+    "stripe": "^14.0.0",
+    "express": "^4.18.2",
+    "body-parser": "^1.20.2"
+  }
+}
