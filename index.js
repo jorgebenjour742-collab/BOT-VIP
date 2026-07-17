@@ -132,8 +132,7 @@ bot.action('program_2026', (ctx) => {
     '🛠️ Ferramentas para começar a divulgar e vender\n\n' +
     '📈 Suporte exclusivo para revendedores\n\n' +
     'Não perca essa oportunidade!',
-    Markup.inlineKeyboard([
-      [Markup.button.callback('✅ Quero Entrar no Programa', 'start_registration')],
+    Markup.inlineKeyboard([\n      [Markup.button.callback('✅ Quero Entrar no Programa', 'start_registration')],
       [Markup.button.callback('⬅️ Voltar', 'main_menu')]
     ])
   );
@@ -231,7 +230,7 @@ bot.on('text', async (ctx) => {
   }
 });
 
-// Confirm Payment
+// Confirm Payment - Com botão de Solicitar Chave Pix
 bot.action('confirm_payment', (ctx) => {
   const userId = ctx.from.id;
   const session = userSessions.get(userId);
@@ -244,21 +243,21 @@ bot.action('confirm_payment', (ctx) => {
     `💳 Dados para Pagamento\n\n` +
     `Valor: R$ 259,99\n\n` +
     `📌 Instruções de Pagamento:\n\n` +
-    `1️⃣ Escolha o método de pagamento:\n` +
-    `   • PIX\n` +
-    `   • Transferência Bancária\n` +
-    `   • Boleto\n\n` +
+    `1️⃣ Clique no botão abaixo para solicitar\n` +
+    `   a chave Pix ao proprietário\n\n` +
     `2️⃣ Os dados de pagamento serão enviados\n` +
     `   pelo administrador em breve\n\n` +
-    `3️⃣ Aguarde a confirmação de seu pagamento\n\n` +
+    `3️⃣ Realize o pagamento via Pix\n\n` +
+    `4️⃣ Aguarde a confirmação de seu pagamento\n\n` +
     `✉️ Você receberá uma mensagem assim que\n` +
     `confirmarmos seu pagamento!`,
     Markup.inlineKeyboard([
+      [Markup.button.callback('🔗 Solicitar Chave Pix', 'request_pix_key')],
       [Markup.button.callback('⬅️ Voltar', 'main_menu')]
     ])
   );
 
-  // Notify admin to send payment info
+  // Notify admin about new registration waiting for payment
   if (ADMIN_CHAT_ID) {
     bot.telegram.sendMessage(
       ADMIN_CHAT_ID,
@@ -270,8 +269,53 @@ bot.action('confirm_payment', (ctx) => {
       `Telefone: ${session.phone}\n` +
       `Endereço: ${session.address}\n\n` +
       `⚠️ AÇÃO NECESSÁRIA:\n` +
-      `Envie os dados de pagamento para este usuário\n` +
+      `Aguarde a solicitação do usuário para\n` +
+      `a chave Pix ou envie os dados de\n` +
+      `pagamento para este usuário\n` +
       `(PIX, Transferência ou Boleto)`
+    );
+  }
+});
+
+// Request Pix Key - Após confirmar cadastro
+bot.action('request_pix_key', (ctx) => {
+  const userId = ctx.from.id;
+  const session = userSessions.get(userId);
+
+  if (!session) {
+    return ctx.reply('Sessão expirada. Comece novamente com /start');
+  }
+
+  ctx.editMessageText(
+    '🔗 Solicitação de Chave Pix\n\n' +
+    '💡 Sua solicitação foi enviada ao\n' +
+    'proprietário do programa.\n\n' +
+    '⏳ Você receberá a chave Pix em breve\n' +
+    'para realizar o pagamento.\n\n' +
+    '📱 Fique atento às mensagens!',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('⬅️ Voltar', 'confirm_payment')]
+    ])
+  );
+
+  // Send message to admin with user contact info
+  if (ADMIN_CHAT_ID) {
+    bot.telegram.sendMessage(
+      ADMIN_CHAT_ID,
+      `🔗 SOLICITAÇÃO DE CHAVE PIX\n\n` +
+      `👤 Usuário: @${ctx.from.username || userId}\n` +
+      `👤 Nome: ${ctx.from.first_name}${ctx.from.last_name ? ' ' + ctx.from.last_name : ''}\n` +
+      `📱 Telegram ID: ${userId}\n` +
+      `📧 Telefone: ${session.phone}\n` +
+      `📍 Endereço: ${session.address}\n\n` +
+      `📌 AÇÃO NECESSÁRIA:\n` +
+      `Envie a chave Pix de pagamento para\n` +
+      `este usuário para que ele possa\n` +
+      `aderir ao programa de revenda.\n\n` +
+      `💰 Valor: R$ 259,99`,
+      Markup.inlineKeyboard([
+        [Markup.button.url('💬 Contatar Usuário', `tg://user?id=${userId}`)]
+      ])
     );
   }
 });
