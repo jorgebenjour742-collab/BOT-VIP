@@ -1,199 +1,330 @@
-import { Telegraf } from 'telegraf';
-import Stripe from 'stripe';
+import { Telegraf, Markup } from 'telegraf';
 import express from 'express';
 import bodyParser from 'body-parser';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY;
-const STRIPE_WEBHOOK = process.env.STRIPE_WEBHOOK_SECRET;
-const PRICE_BRL = 29.99;
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || ''; // Será configurado depois
 const PORT = process.env.PORT || 3000;
 
 const bot = new Telegraf(BOT_TOKEN);
-const stripe = new Stripe(STRIPE_SECRET);
 const app = express();
 
-app.use(bodyParser.raw({ type: 'application/json' }));
+app.use(bodyParser.json());
 
-const subscriptions = new Map();
+// Store user data during registration
+const userSessions = new Map();
 
+// Menu Principal
+const mainMenuKeyboard = Markup.inlineKeyboard([
+  [Markup.button.callback('👨‍💼 Área do Revendedor', 'reseller_area')],
+  [Markup.button.callback('🎯 Projeto 2026 Revendedores', 'program_2026')],
+  [Markup.button.callback('📦 Solicite novo pedido de mercadoria', 'order_request')],
+  [Markup.button.callback('💬 Suporte', 'support')]
+]);
+
+// Área do Revendedor submenu
+const resellerAreaKeyboard = Markup.inlineKeyboard([
+  [Markup.button.callback('🧀 Produtos para revender', 'products')],
+  [Markup.button.callback('📱 Portfólio digital', 'portfolio')],
+  [Markup.button.callback('📣 Materiais de divulgação', 'materials')],
+  [Markup.button.callback('🎓 Curso de técnicas de venda', 'course')],
+  [Markup.button.callback('⬅️ Voltar ao Menu', 'main_menu')]
+]);
+
+// /start command
 bot.start((ctx) => {
-  const keyboard = {
-    inline_keyboard: [[
-      { text: '💎 Ativar Assinatura VIP', callback_data: 'subscribe' }
-    ]]
-  };
-  
   ctx.reply(
-    '👋 Bem-vindo ao Bot VIP!\n\n' +
-    '✨ Assinatura mensal: R$29,99\n' +
-    '📦 Benefícios: Acesso premium completo\n\n' +
-    'Clique no botão abaixo para ativar sua assinatura!',
-    { reply_markup: keyboard }
+    '🌽 Bem-vindo ao Rancho de Minas!\n\n' +
+    'Descubra oportunidades de negócio e acesse nossos produtos.\n\n' +
+    'O que você gostaria de fazer?',
+    mainMenuKeyboard
   );
 });
 
-bot.action('subscribe', async (ctx) => {
-  const userId = ctx.from.id;
-  const userEmail = ctx.from.username ? `${ctx.from.username}@telegram.user` : `user_${userId}@telegram.user`;
-  
-  try {
-    let customer = await stripe.customers.list({ 
-      email: userEmail, 
-      limit: 1 
-    });
-    
-    if (customer.data.length === 0) {
-      customer = await stripe.customers.create({
-        email: userEmail,
-        metadata: { 
-          telegramId: userId.toString(),
-          telegramUsername: ctx.from.username || 'unknown'
-        }
-      });
-    } else {
-      customer = customer.data[0];
-    }
+// Main Menu
+bot.action('main_menu', (ctx) => {
+  ctx.editMessageText(
+    '🌽 Menu Principal - Rancho de Minas\n\n' +
+    'Escolha uma opção:',
+    mainMenuKeyboard
+  );
+});
 
-    const session = await stripe.checkout.sessions.create({
-      customer: customer.id,
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'brl',
-            product_data: { 
-              name: 'Assinatura VIP Telegram',
-              description: 'Acesso VIP por 1 mês'
-            },
-            unit_amount: Math.round(PRICE_BRL * 100),
-            recurring: { 
-              interval: 'month', 
-              interval_count: 1 
-            }
-          },
-          quantity: 1
-        }
-      ],
-      mode: 'subscription',
-      success_url: `https://t.me/${(await bot.telegram.getMe()).username}?start=payment_success`,
-      cancel_url: `https://t.me/${(await bot.telegram.getMe()).username}?start=payment_cancel`,
-      metadata: { 
-        telegramId: userId.toString() 
+// Reseller Area
+bot.action('reseller_area', (ctx) => {
+  ctx.editMessageText(
+    '👨‍💼 Área do Revendedor\n\n' +
+    'Acesse nossos recursos:',
+    resellerAreaKeyboard
+  );
+});
+
+// Products
+bot.action('products', (ctx) => {
+  ctx.editMessageText(
+    '🧀 Produtos para Revender\n\n' +
+    'Conheça nossa linha completa de produtos:\n\n' +
+    '• Queijos artesanais\n' +
+    '• Derivados de leite\n' +
+    '• Produtos especiais sazonais\n\n' +
+    'Para mais informações, use o comando /suporte',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('⬅️ Voltar', 'reseller_area')]
+    ])
+  );
+});
+
+// Portfolio
+bot.action('portfolio', (ctx) => {
+  ctx.editMessageText(
+    '📱 Portfólio Digital\n\n' +
+    'Acesse nosso portfólio digital completo com:\n\n' +
+    '• Catálogo de produtos\n' +
+    '• Fotos em alta resolução\n' +
+    '• Descrições detalhadas\n' +
+    '• Links para compartilhar\n\n' +
+    'Baixe em: https://portfolio.ranchominas.com.br',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('⬅️ Voltar', 'reseller_area')]
+    ])
+  );
+});
+
+// Materials
+bot.action('materials', (ctx) => {
+  ctx.editMessageText(
+    '📣 Materiais de Divulgação\n\n' +
+    'Materiais prontos para você usar:\n\n' +
+    '• Banners para redes sociais\n' +
+    '• Posts prontos\n' +
+    '• Templates de vídeo\n' +
+    '• Flyers em PDF\n\n' +
+    'Acesse: https://materiais.ranchominas.com.br',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('⬅️ Voltar', 'reseller_area')]
+    ])
+  );
+});
+
+// Course
+bot.action('course', (ctx) => {
+  ctx.editMessageText(
+    '🎓 Curso de Técnicas de Venda\n\n' +
+    'Aprenda com nossos especialistas:\n\n' +
+    '• Técnicas de vendas consultivas\n' +
+    '• Gestão de relacionamento com clientes\n' +
+    '• Estratégias de precificação\n' +
+    '• Como aumentar sua margem de lucro\n\n' +
+    'Curso online gratuito para revendedores!',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('⬅️ Voltar', 'reseller_area')]
+    ])
+  );
+});
+
+// Program 2026
+bot.action('program_2026', (ctx) => {
+  ctx.editMessageText(
+    '🎯 Projeto 2026 Revendedores\n\n' +
+    '💰 Por apenas R$ 259,99\n\n' +
+    'Você pode dar o primeiro passo para entrar no programa e receber um:\n\n' +
+    '🎁 Kit de Ativação Comercial com valor comercial de até R$ 2.000,00 em produtos Rancho de Minas\n\n' +
+    '🛠️ Ferramentas para começar a divulgar e vender\n\n' +
+    '📈 Suporte exclusivo para revendedores\n\n' +
+    'Não perca essa oportunidade!',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('✅ Quero Entrar no Programa', 'start_registration')],
+      [Markup.button.callback('⬅️ Voltar', 'main_menu')]
+    ])
+  );
+});
+
+// Start Registration
+bot.action('start_registration', (ctx) => {
+  const userId = ctx.from.id;
+  userSessions.set(userId, { step: 'cpf' });
+  
+  ctx.reply(
+    '📋 Formulário de Inscrição\n\n' +
+    'Passo 1 de 4\n\n' +
+    'Por favor, digite seu CPF (apenas números):'
+  );
+});
+
+// Collect CPF
+bot.on('text', async (ctx) => {
+  const userId = ctx.from.id;
+  const session = userSessions.get(userId);
+
+  if (!session || !session.step) return;
+
+  const userText = ctx.message.text.trim();
+
+  switch (session.step) {
+    case 'cpf':
+      if (!/^\d{11}$/.test(userText.replace(/\D/g, ''))) {
+        return ctx.reply('❌ CPF inválido. Digite apenas 11 números.\nExemplo: 12345678901');
       }
-    });
+      session.cpf = userText.replace(/\D/g, '');
+      session.step = 'name';
+      ctx.reply('✅ CPF recebido!\n\nPasso 2 de 4\n\nDigite seu nome completo:');
+      break;
 
-    const paymentKeyboard = {
-      inline_keyboard: [[
-        { text: '💳 Ir para Pagamento', url: session.url }
-      ]]
-    };
+    case 'name':
+      if (userText.length < 5) {
+        return ctx.reply('❌ Nome muito curto. Digite seu nome completo.');
+      }
+      session.name = userText;
+      session.step = 'phone';
+      ctx.reply('✅ Nome recebido!\n\nPasso 3 de 4\n\nDigite seu telefone (com DDD):\nExemplo: (31) 99999-9999');
+      break;
 
-    await ctx.reply(
-      `💳 Link de Pagamento Gerado!\n\n` +
-      `💰 Valor: R$${PRICE_BRL}/mês\n` +
-      `🔄 Renovação automática\n` +
-      `⏱️ Clique no botão para pagar`,
-      { reply_markup: paymentKeyboard }
-    );
+    case 'phone':
+      if (!/^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/.test(userText)) {
+        return ctx.reply('❌ Telefone inválido.\nFormato correto: (31) 99999-9999 ou 31999999999');
+      }
+      session.phone = userText;
+      session.step = 'address';
+      ctx.reply('✅ Telefone recebido!\n\nPasso 4 de 4\n\nDigite seu endereço completo:\n(Rua, número, bairro, cidade, estado)');
+      break;
 
-    subscriptions.set(userId, { 
-      customerId: customer.id, 
-      sessionId: session.id,
-      email: userEmail
-    });
+    case 'address':
+      if (userText.length < 10) {
+        return ctx.reply('❌ Endereço muito curto. Digite o endereço completo.');
+      }
+      session.address = userText;
+      session.step = 'complete';
 
-    console.log(`📱 Link gerado para usuário ${userId}`);
-  } catch (error) {
-    console.error('Erro ao criar sessão:', error);
-    await ctx.reply('❌ Erro ao processar assinatura. Tente novamente.');
+      // Display registration summary
+      const summary = 
+        `📋 Resumo da Inscrição\n\n` +
+        `✅ CPF: ${session.cpf}\n` +
+        `✅ Nome: ${session.name}\n` +
+        `✅ Telefone: ${session.phone}\n` +
+        `✅ Endereço: ${session.address}\n\n` +
+        `💰 Valor do Programa: R$ 259,99\n\n`;
+
+      ctx.reply(
+        summary,
+        Markup.inlineKeyboard([
+          [Markup.button.callback('💳 Confirmar e Pagar', 'confirm_payment')],
+          [Markup.button.callback('❌ Cancelar', 'main_menu')]
+        ])
+      );
+
+      // Send data to admin
+      if (ADMIN_CHAT_ID) {
+        await bot.telegram.sendMessage(
+          ADMIN_CHAT_ID,
+          `📝 NOVA INSCRIÇÃO - Projeto 2026\n\n` +
+          `👤 Usuário: @${ctx.from.username || ctx.from.id}\n` +
+          `📱 Telegram ID: ${userId}\n\n` +
+          summary +
+          `⏳ Aguardando confirmação de pagamento`
+        );
+      }
+
+      break;
+
+    default:
+      break;
   }
 });
 
-bot.command('status', async (ctx) => {
+// Confirm Payment
+bot.action('confirm_payment', (ctx) => {
   const userId = ctx.from.id;
-  const sub = subscriptions.get(userId);
-  
-  if (sub) {
-    await ctx.reply(`✅ Sua assinatura está sendo processada!\nCustomer ID: ${sub.customerId}`);
-  } else {
-    await ctx.reply('❌ Nenhuma assinatura ativa. Use /start para assinar.');
-  }
-});
+  const session = userSessions.get(userId);
 
-app.post('/webhook', async (req, res) => {
-  const signature = req.headers['stripe-signature'];
-  
-  try {
-    const event = stripe.webhooks.constructEvent(
-      req.body,
-      signature,
-      STRIPE_WEBHOOK
+  if (!session) {
+    return ctx.reply('Sessão expirada. Comece novamente com /start');
+  }
+
+  ctx.editMessageText(
+    `💳 Dados para Pagamento\n\n` +
+    `Valor: R$ 259,99\n\n` +
+    `📌 Instruções de Pagamento:\n\n` +
+    `1️⃣ Escolha o método de pagamento:\n` +
+    `   • PIX\n` +
+    `   • Transferência Bancária\n` +
+    `   • Boleto\n\n` +
+    `2️⃣ Os dados de pagamento serão enviados\n` +
+    `   pelo administrador em breve\n\n` +
+    `3️⃣ Aguarde a confirmação de seu pagamento\n\n` +
+    `✉️ Você receberá uma mensagem assim que\n` +
+    `confirmarmos seu pagamento!`,
+    Markup.inlineKeyboard([
+      [Markup.button.callback('⬅️ Voltar', 'main_menu')]
+    ])
+  );
+
+  // Notify admin to send payment info
+  if (ADMIN_CHAT_ID) {
+    bot.telegram.sendMessage(
+      ADMIN_CHAT_ID,
+      `💰 PAGAMENTO AGUARDANDO\n\n` +
+      `Usuário: @${ctx.from.username || ctx.from.id}\n` +
+      `ID: ${userId}\n` +
+      `Nome: ${session.name}\n` +
+      `CPF: ${session.cpf}\n` +
+      `Telefone: ${session.phone}\n` +
+      `Endereço: ${session.address}\n\n` +
+      `⚠️ AÇÃO NECESSÁRIA:\n` +
+      `Envie os dados de pagamento para este usuário\n` +
+      `(PIX, Transferência ou Boleto)`
     );
-
-    switch (event.type) {
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated':
-        const subscription = event.data.object;
-        const telegramId = subscription.metadata?.telegramId;
-        
-        if (subscription.status === 'active' && telegramId) {
-          await bot.telegram.sendMessage(
-            telegramId,
-            '✅ Assinatura ativada com sucesso!\n\n' +
-            '🎉 Bem-vindo ao VIP!\n' +
-            '💎 Você agora tem acesso premium completo.'
-          );
-          console.log(`✅ Assinatura ativada para ${telegramId}`);
-        }
-        break;
-
-      case 'customer.subscription.deleted':
-        const deletedSub = event.data.object;
-        const delTelegramId = deletedSub.metadata?.telegramId;
-        
-        if (delTelegramId) {
-          await bot.telegram.sendMessage(
-            delTelegramId,
-            '❌ Sua assinatura foi cancelada.\n\n' +
-            'Use /start para reativar!'
-          );
-          console.log(`❌ Assinatura cancelada para ${delTelegramId}`);
-        }
-        break;
-
-      case 'invoice.payment_failed':
-        const failedInvoice = event.data.object;
-        const customer = await stripe.customers.retrieve(failedInvoice.customer);
-        const failTelegramId = customer.metadata?.telegramId;
-        
-        if (failTelegramId) {
-          await bot.telegram.sendMessage(
-            failTelegramId,
-            '⚠️ Falha no pagamento da sua assinatura.\n\n' +
-            'Verifique seu cartão e tente novamente.'
-          );
-          console.log(`⚠️ Pagamento falhou para ${failTelegramId}`);
-        }
-        break;
-    }
-
-    res.json({ received: true });
-  } catch (error) {
-    console.error('Erro no webhook:', error);
-    res.status(400).send(`Webhook Error: ${error.message}`);
   }
 });
 
+// Order Request
+bot.action('order_request', (ctx) => {
+  ctx.editMessageText(
+    '📦 Solicite novo pedido de mercadoria\n\n' +
+    'Para fazer um pedido de mercadoria:\n\n' +
+    '📞 Entre em contato conosco:\n' +
+    '   Telefone: (31) 3XXX-XXXX\n' +
+    '   WhatsApp: (31) 99XXX-XXXX\n\n' +
+    '📧 Email: pedidos@ranchominas.com.br\n\n' +
+    '💬 Ou envie uma mensagem aqui com:\n' +
+    '   • Quais produtos deseja\n' +
+    '   • Quantidades\n' +
+    '   • Prazos desejados',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('⬅️ Voltar', 'main_menu')]
+    ])
+  );
+});
+
+// Support
+bot.action('support', (ctx) => {
+  ctx.editMessageText(
+    '💬 Suporte Rancho de Minas\n\n' +
+    'Dúvidas? Estamos aqui para ajudar!\n\n' +
+    '📞 Telefone: (31) 3XXX-XXXX\n' +
+    '📱 WhatsApp: (31) 99XXX-XXXX\n' +
+    '📧 Email: suporte@ranchominas.com.br\n\n' +
+    'Horário de atendimento:\n' +
+    'Segunda a Sexta: 08h às 18h\n' +
+    'Sábado: 08h às 12h\n\n' +
+    '💡 Dica: Você também pode escrever sua dúvida\n' +
+    'aqui mesmo que responderemos em breve!',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('⬅️ Voltar', 'main_menu')]
+    ])
+  );
+});
+
+// Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', bot: 'running' });
+  res.json({ status: 'ok', bot: 'Rancho de Minas' });
 });
 
+// Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Server rodando na porta ${PORT}`);
-  console.log(`📡 Bot Telegram conectado!`);
+  console.log(`🚀 Bot Rancho de Minas rodando na porta ${PORT}`);
 });
 
+// Start bot
 bot.launch();
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
